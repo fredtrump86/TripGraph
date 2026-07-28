@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="基于 LangGraph StateGraph 的多 Agent 智能旅行助手" />
+    <title>TripGraph</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><text y=%2250%22 x=%2250%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-size=%2250%22>✈</text></svg>" />
+    <link rel="stylesheet" href="/static/styles.css?v=1.4.0" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="app-header">
+        <a href="/" class="app-brand">🌍 TripGraph</a>
+      </header>
+
+      <main id="homeView" class="home-container">
+        <div class="bg-decoration" aria-hidden="true">
+          <div class="circle circle-1"></div>
+          <div class="circle circle-2"></div>
+          <div class="circle circle-3"></div>
+        </div>
+
+        <section class="home-content">
+          <div class="page-title-block">
+            <div class="plane-icon">✈️</div>
+            <h1>智能旅行助手</h1>
+            <p>基于AI的个性化旅行规划，让每一次出行都完美无忧</p>
+          </div>
+
+          <section class="form-card">
+            <form id="tripForm">
+              <div class="form-section">
+                <div class="section-header"><span>📍</span><strong>目的地与日期</strong></div>
+                <div class="destination-grid">
+                  <label>
+                    <span>目的地城市</span>
+                    <div class="input-with-icon"><i>🏙️</i><input name="city" placeholder="例如：北京" required maxlength="40" /></div>
+                  </label>
+                  <label>
+                    <span>开始日期</span>
+                    <input name="start_date" type="date" required />
+                  </label>
+                  <label>
+                    <span>结束日期</span>
+                    <input name="end_date" type="date" required />
+                  </label>
+                  <label>
+                    <span>旅行天数</span>
+                    <output id="travelDays" class="days-display"><b>1</b><small>天</small></output>
+                  </label>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <div class="section-header"><span>⚙️</span><strong>偏好设置</strong></div>
+                <div class="preference-grid">
+                  <label>
+                    <span>交通方式</span>
+                    <select name="transportation">
+                      <option value="公共交通">🚇 公共交通</option>
+                      <option value="自驾">🚗 自驾</option>
+                      <option value="步行">🚶 步行</option>
+                      <option value="混合">🔀 混合</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>住宿偏好</span>
+                    <select name="accommodation">
+                      <option value="经济型酒店">💰 经济型酒店</option>
+                      <option value="舒适型酒店">🏨 舒适型酒店</option>
+                      <option value="豪华酒店">⭐ 豪华酒店</option>
+                      <option value="民宿">🏡 民宿</option>
+                    </select>
+                  </label>
+                  <fieldset>
+                    <legend>旅行偏好</legend>
+                    <div class="preference-tags">
+                      <label><input type="checkbox" name="preferences" value="历史文化" /><span>🏛️ 历史文化</span></label>
+                      <label><input type="checkbox" name="preferences" value="自然风光" /><span>🏞️ 自然风光</span></label>
+                      <label><input type="checkbox" name="preferences" value="美食" /><span>🍜 美食</span></label>
+                      <label><input type="checkbox" name="preferences" value="购物" /><span>🛍️ 购物</span></label>
+                      <label><input type="checkbox" name="preferences" value="艺术" /><span>🎨 艺术</span></label>
+                      <label><input type="checkbox" name="preferences" value="休闲" /><span>☕ 休闲</span></label>
+                    </div>
+                  </fieldset>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <div class="section-header"><span>💬</span><strong>额外要求</strong></div>
+                <textarea name="free_text_input" rows="3" maxlength="1000" placeholder="请输入您的额外要求，例如：想去看升旗、需要无障碍设施、对海鲜过敏等…"></textarea>
+              </div>
+
+              <button class="submit-button" type="submit">
+                <span id="submitText">🚀 开始规划我的旅行</span>
+              </button>
+
+              <section id="loadingContainer" class="loading-container hidden" aria-live="polite">
+                <div class="progress-bar"><span id="progressBar"></span></div>
+                <strong id="loadingStatus">正在初始化…</strong>
+                <div id="progressTrack" class="agent-progress"></div>
+              </section>
+              <section id="errorBox" class="error-box hidden" role="alert"></section>
+            </form>
+          </section>
+        </section>
+      </main>
+
+      <main id="resultView" class="result-container hidden">
+        <div class="result-page-header">
+          <button id="backButton" class="default-button" type="button">← 返回首页</button>
+          <div class="result-actions">
+            <button id="editButton" class="default-button" type="button">✏️ 编辑行程</button>
+            <button id="saveButton" class="primary-action hidden" type="button">💾 保存修改</button>
+            <button id="cancelButton" class="default-button hidden" type="button">❌ 取消编辑</button>
+            <button id="imageButton" class="default-button" type="button">📷 导出图片</button>
+            <button id="pdfButton" class="default-button" type="button">📄 导出PDF</button>
+          </div>
+        </div>
+
+        <div class="content-wrapper">
+          <aside id="sideNav" class="side-nav">
+            <nav>
+              <button data-section="overview" class="active">📋 行程概览</button>
+              <button data-section="budget">💰 预算明细</button>
+              <button data-section="map">📍 景点地图</button>
+              <div class="side-days-title">📅 每日行程</div>
+              <div id="sideDayLinks"></div>
+              <button data-section="weather">🌤️ 天气信息</button>
+            </nav>
+          </aside>
+
+          <div id="mainContent" class="main-content">
+            <div class="top-info-section">
+              <div class="left-info">
+                <section id="overview" class="result-card overview-card">
+                  <h2 id="resultTitle"></h2>
+                  <div id="overviewContent" class="overview-content"></div>
+                </section>
+                <section id="budget" class="result-card budget-card">
+                  <h2>💰 预算明细</h2>
+                  <div id="budgetPanel"></div>
+                </section>
+              </div>
+
+              <div class="right-map">
+                <section id="map" class="result-card map-card">
+                  <div class="card-heading">
+                    <h2>📍 景点地图</h2>
+                  </div>
+                  <div class="map-shell">
+                    <div id="mapCanvas" aria-label="当前日期景点与行程连线"></div>
+                    <div id="mapState" class="map-state">正在准备地图…</div>
+                  </div>
+                </section>
+              </div>
+            </div>
+
+            <section id="days" class="result-card days-card">
+              <h2>📅 每日行程</h2>
+              <div id="daysAccordion" class="days-accordion"></div>
+            </section>
+
+            <section id="weather" class="result-card weather-section">
+              <h2>🌤️ 天气信息</h2>
+              <div id="weatherGrid" class="weather-grid"></div>
+            </section>
+
+          </div>
+        </div>
+        <button id="backTopButton" class="back-top-button" type="button" aria-label="回到顶部">↑</button>
+      </main>
+
+      <footer>TripGraph ©2026 基于 LangGraph StateGraph 框架</footer>
+    </div>
+
+    <script src="https://webapi.amap.com/loader.js"></script>
+    <script src="/static/vendor/html2canvas.min.js?v=1.0.0" defer></script>
+    <script src="/static/vendor/jspdf.umd.min.js?v=1.0.0" defer></script>
+    <script src="/static/app.js?v=1.4.1" defer></script>
+  </body>
+</html>
